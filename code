@@ -1,0 +1,91 @@
+import org.apache.arrow.flatbuf.Timestamp
+import org.apache.spark.sql.{Column, Row, SparkSession}
+import org.apache.spark.sql.functions.{array_contains, col, unix_timestamp}
+import org.apache.spark.sql.types.{ArrayType, BooleanType, DateType, IntegerType, StringType, StructType, TimestampType}
+
+import scala.Int.int2double
+
+
+object Main {
+
+
+
+  def main(args: Array[String]): Unit = {
+    val spark: SparkSession = SparkSession.builder().master("local[1]")
+      .appName("SparkByExamples.com")
+      .getOrCreate()
+
+    import spark.implicits._
+
+    val Data = Seq(
+      Row(12345, "2019-07-01 12:01:19.000", List("visit","click"),101,List("sport"),true,List("12-16")),
+      Row(2345, "2022-12-01 01:20:15.000", List("visit","click","move"),103,List("medicine"),false,List("0-4")),
+      Row(123, "2021-07-23 10:30:14.000", List("visit","move"),106,List("IT"),true,List("8-12")),
+      Row(532, "2022-11-01 20:20:19.000", List("visit","scroll"),108,List("news"),true,List("20-0")),
+      Row(12, "2020-01-01 13:15:20.000", List("click"),104,List("sport"),false,List("12-16"))
+    )
+
+    val schema = new StructType()
+
+      .add("id",IntegerType)
+      .add("timestamp",StringType)
+      .add("type",ArrayType(StringType))
+      .add("page_id", IntegerType)
+      .add("tag", ArrayType(StringType))
+      .add("sign", BooleanType)
+      .add("time_dp",ArrayType(StringType))
+
+
+    import org.apache.spark.sql.functions.to_timestamp
+
+    val df = spark.createDataFrame(spark.sparkContext.parallelize(Data),schema)
+    df.withColumn("timestamp", to_timestamp($"timestamp", "yyyy-MM-dd").cast(TimestampType))
+    df.printSchema()
+    df.show()
+    //Вывести топ-5 самых активных посетителей сайта
+    df.sort(col("timestamp").desc).show(5)
+    df.filter(df("sign")===true).show(false)
+    //Посчитать процент посетителей, у которых есть ЛК
+    df.groupBy("sign").count().filter(df("sign")===true).show(false)
+    //Вывести топ-5 страниц сайта по показателю среднего кол-ва кликов на данной странице
+    df.filter(array_contains(df("type"),"click")).show(5)
+    //Выведите временной промежуток на основе предыдущего задания, в течение которого было больше всего активностей на сайте
+    val df2=df.groupBy("time_dp").count()
+    df2.show()
+    df2.groupBy("time_dp").max("count").show()
+
+
+    import spark.implicits._
+
+    val Data2 = Seq(
+      Row(23, 12345, "Jen", "Mary", "Brown", "2018-12-22"),
+      Row(27, 2345, "Petrov", "Mark", "Petrovich", "2017-07-23"),
+      Row(56, 123, "Sidorov", "Ivan", "Markovich", "2017-08-14"),
+      Row(45, 532, "Ivanov", "Mars", "Sidorovich", "2016-06-06"),
+      Row(11, 12, "Vasiliev", "Petr", "Sergeevich", "2017-07-01")
+    )
+
+    val schema2 = new StructType()
+
+      .add("id_name", IntegerType)
+      .add("user_id", IntegerType)
+      .add("firstname", StringType)
+      .add("middlename", StringType)
+      .add("lastname", StringType)
+      .add("data", StringType)
+
+    val df3 = spark.createDataFrame(spark.sparkContext.parallelize(Data2), schema2)
+    df3.printSchema()
+    df3.show()
+    val df4=df.join(df3, df("id") === df3("user_id"),"inner")
+    df4.show()
+    val df5=df4.filter(array_contains(df4("tag"),"sport"))
+    df5.show()
+    df5.select("firstname").show()
+
+
+  }
+
+
+
+}
